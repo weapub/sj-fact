@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.next/
+.turbo/
+.vercel/
+coverage/
+*.log
+*.tmp
+.DS_Store
+sj-next/.next/
+sj-next/node_modules/
+sj-next/.vercel/

@@ -1,0 +1,35 @@
+@import "tailwindcss";
+
+/* Base resets y altura completa para layout */
+:root { color-scheme: light; }
+html, body, #root { height: 100%; }
+body { margin: 0; }
+
+/* Fuente y colores base */
+body {
+  font-family: Nunito, system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  background-color: #f8fafc; /* slate-50 */
+  color: #0f172a; /* slate-900 */
+}
+
+/* Suavizar scroll y transiciones */
+* { scroll-behavior: smooth; }
+
+/* Estilos de impresión */
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+  html, body {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    font-size: 12px;
+  }
+  /* Quitar fondos grises para ahorrar tinta */
+  .bg-gray-100, .bg-gray-200, .bg-gray-50 { background-color: #ffffff !important; }
+  /* Bordes suaves de tablas en impresión */
+  table, th, td { border-color: #ddd !important; }
+}
