@@ -5,7 +5,7 @@ import Button from '../components/Button'
 import Table from '../components/Table'
 import Input from '../components/Input'
 import Modal from '../components/Modal'
-import { useToast } from '../components/Toast'
+import { useToast } from '../components/ToastContext'
 import { formatMoney } from '../utils/format'
 import Badge from '../components/Badge'
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { db } from '../data/db'
 import Card from '../components/Card'
 import Button from '../components/Button'
@@ -7,7 +7,7 @@ import Input from '../components/Input'
 import Select from '../components/Select'
 import Badge from '../components/Badge'
 import Modal from '../components/Modal'
-import { useToast } from '../components/Toast'
+import { useToast } from '../components/ToastContext'
 import { formatMoney, parseMoney } from '../utils/format'
 
 export default function Products() {
@@ -66,7 +66,7 @@ export default function Products() {
 
   
 
-  async function load() {
+  const load = useCallback(async () => {
     const list = await db.products.orderBy('name').toArray()
     setProducts(list)
     const lists = await db.priceLists.orderBy('name').toArray()
@@ -81,12 +81,12 @@ export default function Products() {
         setSelectedListId(String((general || lists[0]).id))
       }
     }
-  }
+  }, [createNewList, selectedListId])
 
   useEffect(() => {
     load()
     setTimeout(() => { addNameRef.current?.focus() }, 0)
-  }, [])
+  }, [load])
 
   useEffect(() => {
     const q = (form.name || '').trim().toLowerCase()
@@ -145,7 +145,9 @@ export default function Products() {
         const names = all.map(p => p.name).filter(Boolean)
         await deleteProductsAndPricesByKeys({ skus, names })
       }
-    } catch {}
+    } catch {
+      toast.show('Error al eliminar productos en nube', 'warning')
+    }
     setDeleteAllOpen(false)
     toast.show('Todos los productos fueron eliminados')
     await load()
@@ -166,7 +168,9 @@ export default function Products() {
       if (isSupabaseConfigured()) {
         await deleteAllOwnerData()
       }
-    } catch {}
+    } catch {
+      toast.show('Error al reiniciar datos en nube', 'warning')
+    }
     setResetAllOpen(false)
     setConfirmResetAllText('')
     toast.show('Datos reiniciados')
@@ -376,7 +380,7 @@ export default function Products() {
     const dataRows = rows.slice(1)
     setCsvHeaders(headers)
     setCsvRows(dataRows)
-  }, [delimiter])
+  }, [delimiter, csvRaw])
 
   useEffect(() => {
     // Re-decodificar cuando cambia la codificación
@@ -395,8 +399,11 @@ export default function Products() {
       const dataRows = rows.slice(1)
       setCsvHeaders(headers)
       setCsvRows(dataRows)
-    } catch {}
-  }, [encoding])
+    } catch {
+      setCsvHeaders([])
+      setCsvRows([])
+    }
+  }, [encoding, csvBuffer, delimiter])
 
   useEffect(() => {
     // actualizar mapa de precios cuando cambia la lista seleccionada
@@ -1009,7 +1016,7 @@ export default function Products() {
             })).map(p => {
               const pr = pricesMap[p.id]
               const code = (p.barcode && p.barcode.trim()) ? p.barcode : (p.sku || '')
-              const isEditing = editingId === p.id
+              
               return (
                 <tr key={p.id} className="border-t hover:bg-gray-50">
                   <td className="p-1 md:p-2 text-sm md:text-base">

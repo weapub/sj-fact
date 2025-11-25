@@ -5,7 +5,7 @@ import Card from '../components/Card'
 import Button from '../components/Button'
 import Badge from '../components/Badge'
 import Modal from '../components/Modal'
-import { useToast } from '../components/Toast'
+import { useToast } from '../components/ToastContext'
 
 export default function Settings() {
   const toast = useToast()
@@ -39,7 +39,9 @@ export default function Settings() {
         const names = all.map(p => p.name).filter(Boolean)
         await deleteProductsAndPricesByKeys({ skus, names })
       }
-    } catch {}
+    } catch {
+      toast.show('Error al eliminar en nube', 'warning')
+    }
     setDeleteAllOpen(false)
     setConfirmDeleteAllText('')
     toast.show('Todos los productos fueron eliminados')
@@ -58,7 +60,9 @@ export default function Settings() {
       if (isSupabaseConfigured()) {
         await deleteAllOwnerData()
       }
-    } catch {}
+    } catch {
+      toast.show('Error al borrar datos en nube', 'warning')
+    }
     setResetAllOpen(false)
     setConfirmResetAllText('')
     toast.show('Datos reiniciados')

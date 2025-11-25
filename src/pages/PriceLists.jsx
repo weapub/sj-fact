@@ -7,7 +7,7 @@ import Input from '../components/Input'
 import Select from '../components/Select'
 import Badge from '../components/Badge'
 import Modal from '../components/Modal'
-import { useToast } from '../components/Toast'
+import { useToast } from '../components/ToastContext'
 
 export default function PriceLists() {
   const [lists, setLists] = useState([])

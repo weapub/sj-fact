@@ -4,10 +4,12 @@ import Button from '../components/Button'
 import Input from '../components/Input'
 import Select from '../components/Select'
 import Badge from '../components/Badge'
-import { useToast } from '../components/Toast'
+import { useToast } from '../components/ToastContext'
 import { db } from '../data/db'
 import { formatMoney } from '../utils/format'
  
+
+const INITIAL_EXTRAS = [{ name: 'Bolsas', amountText: '0' }, { name: 'Flete', amountText: '0' }]
 
 export default function PriceCalculator() {
   const { show } = useToast()
@@ -20,7 +22,7 @@ export default function PriceCalculator() {
   const [iibbPct, setIibbPct] = useState(2)
   const [percIvaEnabled, setPercIvaEnabled] = useState(true)
   const [percIvaPct, setPercIvaPct] = useState(3)
-  const [extras, setExtras] = useState([{ name: 'Bolsas', amountText: '0' }, { name: 'Flete', amountText: '0' }])
+  const [extras, setExtras] = useState(INITIAL_EXTRAS)
   // Productos y listas destino para aplicar precios
   const [products, setProducts] = useState([])
   const [priceLists, setPriceLists] = useState([])
@@ -39,7 +41,7 @@ export default function PriceCalculator() {
       if (cfg && Array.isArray(cfg.extras)) {
         setExtras(cfg.extras.map(e => ({ name: e.name || '', amountText: String(e.amountText ?? e.amount ?? '0') })))
       } else {
-        await db.calcConfig.put({ id: 1, extras })
+        await db.calcConfig.put({ id: 1, extras: INITIAL_EXTRAS })
       }
       // Cargar productos y listas de precios destino
       const prods = await db.products.orderBy('name').toArray()
@@ -95,7 +97,7 @@ export default function PriceCalculator() {
       return { key: d.key, label: `${d.name} (+${d.pct}%)`, price: applyRounding(raw) }
     })
     return pesSources
-  }, [costBeforeMargin, pesableDefs, roundingMode])
+  }, [costBeforeMargin, pesableDefs, roundingMode, applyRounding])
   const selectedSource = useMemo(() => calcSources.find(s => s.key === priceSourceKey) || null, [calcSources, priceSourceKey])
 
   const filteredProducts = useMemo(() => {

@@ -6,7 +6,7 @@ import Input from '../components/Input'
 import Select from '../components/Select'
 import Badge from '../components/Badge'
 import Modal from '../components/Modal'
-import { useToast } from '../components/Toast'
+import { useToast } from '../components/ToastContext'
 import { formatMoney, parseMoney } from '../utils/format'
 
 type Supplier = { id: number; name: string; taxPct?: number; taxId?: string; email?: string }
@@ -30,6 +30,18 @@ export default function Purchases() {
   const addQueryRef = useRef<HTMLInputElement | null>(null)
   const [supplierOpen, setSupplierOpen] = useState(false)
   const [supplierForm, setSupplierForm] = useState<{ name: string; taxPct: number; taxId: string; email: string }>({ name: '', taxPct: 0, taxId: '', email: '' })
+
+  const [editOpen, setEditOpen] = useState(false)
+  const [editForm, setEditForm] = useState<{ id: number; supplierId: string; number: string; date: string; taxPct: number }>({ id: 0, supplierId: '', number: '', date: new Date().toISOString().slice(0,10), taxPct: 0 })
+  const [editItems, setEditItems] = useState<ItemState[]>([])
+  const [editItemQueries, setEditItemQueries] = useState<string[]>([])
+  const [editItemActive, setEditItemActive] = useState<Record<number, number>>({})
+  const [editItemQtyText, setEditItemQtyText] = useState<string[]>([])
+  const [editItemCostText, setEditItemCostText] = useState<string[]>([])
+  const [editItemIds, setEditItemIds] = useState<number[]>([])
+  const [editOriginalItemIds, setEditOriginalItemIds] = useState<number[]>([])
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [toDelete, setToDelete] = useState<number | null>(null)
 
   useEffect(() => { db.suppliers?.toArray().then(arr => setSuppliers(arr || [])) }, [])
   useEffect(() => { db.priceLists.toArray().then(setLists) }, [])
@@ -98,6 +110,81 @@ export default function Purchases() {
     setForm(prev => ({ ...prev, supplierId: String(id), taxPct: isNaN(taxNum) ? 0 : taxNum }))
     setSupplierOpen(false)
     setSupplierForm({ name: '', taxPct: 0, taxId: '', email: '' })
+  }
+
+  function openEditPurchase(p: Purchase) {
+    setEditForm({ id: p.id, supplierId: String(p.supplierId), number: p.number, date: new Date(p.date).toISOString().slice(0,10), taxPct: Number(p.taxPct || 0) })
+    db.purchaseItems.where('purchaseId').equals(p.id).toArray().then(rows => {
+      const items = rows.map(r => ({ productId: String(r.productId), qty: Number(r.qty), unitCost: Number(r.unitCost) }))
+      setEditItems(items)
+      setEditItemQueries(items.map(() => ''))
+      setEditItemQtyText(items.map(it => String(it.qty).replace('.', ',')))
+      setEditItemCostText(items.map(it => String(it.unitCost).replace('.', ',')))
+      const ids = rows.map(r => r.id as number)
+      setEditItemIds(ids)
+      setEditOriginalItemIds(ids)
+      setEditItemActive({})
+      setEditOpen(true)
+    })
+  }
+
+  function editAddItem() {
+    setEditItems(prev => ([...prev, { productId: '', qty: 1, unitCost: 0 }]))
+    setEditItemQueries(prev => ([...prev, '']))
+    setEditItemQtyText(prev => ([...prev, '1']))
+    setEditItemCostText(prev => ([...prev, '0']))
+    setEditItemIds(prev => ([...prev, 0]))
+  }
+
+  function editUpdateItem(idx: number, patch: Partial<ItemState>) {
+    setEditItems(prev => prev.map((it, i) => i === idx ? { ...it, ...patch } : it))
+  }
+
+  function editRemoveItem(idx: number) {
+    setEditItems(prev => prev.filter((_, i) => i !== idx))
+    setEditItemQueries(prev => prev.filter((_, i) => i !== idx))
+    setEditItemQtyText(prev => prev.filter((_, i) => i !== idx))
+    setEditItemCostText(prev => prev.filter((_, i) => i !== idx))
+    setEditItemIds(prev => prev.filter((_, i) => i !== idx))
+  }
+
+  async function performEditPurchase() {
+    if (!editForm.id || !editForm.supplierId || !editForm.number) { show('Proveedor y número son obligatorios', 'warning'); return }
+    const total = editItems.reduce((acc, it) => acc + computeSalePrice(it.unitCost, editForm.taxPct, 0) * Number(it.qty || 0), 0)
+    await db.purchases.put({ id: editForm.id, number: String(editForm.number), supplierId: Number(editForm.supplierId), date: new Date(editForm.date).toISOString(), total, taxPct: Number(editForm.taxPct || 0) })
+    const keptIds: number[] = []
+    for (let i = 0; i < editItems.length; i++) {
+      const it = editItems[i]
+      const existingId = Number(editItemIds[i] || 0)
+      if (existingId > 0) {
+        await db.purchaseItems.put({ id: existingId, purchaseId: editForm.id, productId: Number(it.productId || 0), qty: Number(it.qty || 0), unitCost: Number(it.unitCost || 0), taxes: Number(editForm.taxPct || 0), totalCost: Number(it.unitCost || 0) * Number(it.qty || 0) * (1 + Number(editForm.taxPct || 0)/100) })
+        keptIds.push(existingId)
+      } else {
+        const nid = await db.purchaseItems.add({ purchaseId: editForm.id, productId: Number(it.productId || 0), qty: Number(it.qty || 0), unitCost: Number(it.unitCost || 0), taxes: Number(editForm.taxPct || 0), totalCost: Number(it.unitCost || 0) * Number(it.qty || 0) * (1 + Number(editForm.taxPct || 0)/100) })
+        keptIds.push(nid as number)
+      }
+    }
+    const toRemove = editOriginalItemIds.filter(id => !keptIds.includes(id))
+    if (toRemove.length) await db.purchaseItems.bulkDelete(toRemove)
+    const all = await db.purchases.toArray()
+    setPurchases(all.sort((a,b) => new Date(b.date) - new Date(a.date)))
+    setEditOpen(false)
+    show('Compra actualizada', 'success')
+  }
+
+  function confirmDeletePurchase(id: number) { setToDelete(id); setDeleteOpen(true) }
+
+  async function performDeletePurchase() {
+    if (toDelete == null) return
+    const rows = await db.purchaseItems.where('purchaseId').equals(toDelete).toArray()
+    const ids = rows.map(r => r.id as number)
+    if (ids.length) await db.purchaseItems.bulkDelete(ids)
+    await db.purchases.delete(toDelete)
+    const all = await db.purchases.toArray()
+    setPurchases(all.sort((a,b) => new Date(b.date) - new Date(a.date)))
+    setDeleteOpen(false)
+    setToDelete(null)
+    show('Compra eliminada', 'success')
   }
 
   return (
@@ -294,12 +381,13 @@ export default function Purchases() {
                 <th className="text-left px-3 py-2 border border-slate-200 sticky top-0 bg-slate-50">Fecha</th>
                 <th className="text-left px-3 py-2 border border-slate-200 sticky top-0 bg-slate-50">Impuestos</th>
                 <th className="text-right px-3 py-2 border border-slate-200 sticky top-0 bg-slate-50">Total</th>
+                <th className="text-left px-3 py-2 border border-slate-200 sticky top-0 bg-slate-50">Acciones</th>
               </tr>
             </thead>
             <tbody>
               {purchases.length === 0 && (
                 <tr>
-                  <td colSpan="5" className="px-3 py-3 text-slate-600 text-center"><Badge variant="default">Sin compras</Badge></td>
+                  <td colSpan="6" className="px-3 py-3 text-slate-600 text-center"><Badge variant="default">Sin compras</Badge></td>
                 </tr>
               )}
               {purchases.map(p => {
@@ -311,6 +399,12 @@ export default function Purchases() {
                     <td className="px-2 md:px-3 py-1 md:py-2 text-sm md:text-base border border-slate-200">{new Date(p.date).toLocaleDateString()}</td>
                     <td className="px-2 md:px-3 py-1 md:py-2 text-sm md:text-base border border-slate-200">{String(p.taxPct)}%</td>
                     <td className="px-2 md:px-3 py-1 md:py-2 text-sm md:text-base border border-slate-200 text-right">{formatMoney(p.total)}</td>
+                    <td className="px-2 md:px-3 py-1 md:py-2 text-sm md:text-base border border-slate-200">
+                      <div className="flex gap-2">
+                        <Button type="button" variant="secondary" onClick={() => openEditPurchase(p)}>Editar</Button>
+                        <Button type="button" variant="danger" onClick={() => confirmDeletePurchase(p.id)}>Eliminar</Button>
+                      </div>
+                    </td>
                   </tr>
                 )
               })}
@@ -322,6 +416,113 @@ export default function Purchases() {
     <div className="fixed bottom-0 left-0 right-0 z-30 md:hidden bg-white border-t p-2">
       <Button type="button" variant="primary" className="w-full" onClick={savePurchase}>Guardar compra</Button>
     </div>
+    <Modal isOpen={editOpen} title="Editar compra" onClose={() => setEditOpen(false)}
+      footer={(
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="secondary" onClick={() => setEditOpen(false)}>Cancelar</Button>
+          <Button type="button" variant="success" onClick={performEditPurchase}>Guardar</Button>
+        </div>
+      )}
+    >
+      <div className="space-y-3">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
+          <Select label="Proveedor" value={editForm.supplierId} onChange={e => setEditForm(prev => ({ ...prev, supplierId: e.target.value }))}>
+            <option value="">Seleccione…</option>
+            {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </Select>
+          <Input label="Número" value={editForm.number} onChange={e => setEditForm(prev => ({ ...prev, number: e.target.value }))} />
+          <Input label="Fecha" type="date" value={editForm.date} onChange={e => setEditForm(prev => ({ ...prev, date: e.target.value }))} />
+          <Input label="Impuestos (%)" type="text" value={String(editForm.taxPct)} onChange={e => {
+            let val = e.target.value || ''
+            val = val.replace(/\./g, ',').replace(/[^\d,]/g, '')
+            const num = parseFloat(val.replace(',', '.'))
+            setEditForm(prev => ({ ...prev, taxPct: isNaN(num) ? 0 : num }))
+          }} />
+          <Button type="button" variant="success" onClick={editAddItem}>Agregar ítem</Button>
+        </div>
+        <div className="space-y-2 mt-2">
+          {editItems.map((it, idx) => {
+            const q = (editItemQueries[idx] || '').trim().toLowerCase()
+            const selected = products.find(p => p.id === Number(it.productId))
+            const suggestions = (!selected && q.length >= 1) ? products.filter(p => [p.name, p.sku, p.barcode, p.category].some(v => (v || '').toLowerCase().includes(q))).slice(0, 8) : []
+            const piUnit = computePI(it.unitCost, editForm.taxPct)
+            return (
+              <div key={`edit-${idx}`} className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
+                <div className="md:col-span-2 relative">
+                  <Input label="Buscar producto" value={editItemQueries[idx] || ''} onChange={e => {
+                    const val = e.target.value
+                    setEditItemQueries(prev => prev.map((x, i) => i === idx ? val : x))
+                    setEditItemActive(prev => ({ ...prev, [idx]: 0 }))
+                  }} onKeyDown={e => {
+                    if (e.key === 'ArrowDown' && suggestions.length > 0) {
+                      e.preventDefault(); e.stopPropagation()
+                      setEditItemActive(prev => ({ ...prev, [idx]: Math.min((prev[idx] ?? 0) + 1, suggestions.length - 1) }))
+                    } else if (e.key === 'ArrowUp' && suggestions.length > 0) {
+                      e.preventDefault(); e.stopPropagation()
+                      setEditItemActive(prev => ({ ...prev, [idx]: Math.max((prev[idx] ?? 0) - 1, 0) }))
+                    } else if (e.key === 'Enter' && suggestions.length > 0) {
+                      e.preventDefault(); e.stopPropagation()
+                      const ai = Math.min(Math.max((editItemActive[idx] ?? 0), 0), suggestions.length - 1)
+                      const s = suggestions[ai]
+                      editUpdateItem(idx, { productId: String(s.id) })
+                      setEditItemQueries(prev => prev.map((x, i) => i === idx ? '' : x))
+                      setEditItemActive(prev => { const { [idx]: _, ...rest } = prev; return rest })
+                    }
+                  }} placeholder="Nombre, código, categoría…" />
+                  {suggestions.length > 0 && (
+                    <div className="mt-1 border rounded bg-white shadow text-sm max-h-60 overflow-auto z-10">
+                      <div className="px-2 py-1 text-xs text-slate-600">Coincidencias</div>
+                      {suggestions.map((s, i) => {
+                        const isActive = i === Math.min(Math.max((editItemActive[idx] ?? 0), 0), suggestions.length - 1)
+                        return (
+                          <Button type="button" key={s.id} variant="outline" size="sm" className={`w-full text-left px-2 py-1 flex items-center justify-between ${isActive ? 'bg-indigo-200 ring-2 ring-indigo-400' : 'hover:bg-gray-50'}`} onMouseDown={() => {
+                            editUpdateItem(idx, { productId: String(s.id) })
+                            setEditItemQueries(prev => prev.map((x, i2) => i2 === idx ? '' : x))
+                            setEditItemActive(prev => { const { [idx]: _, ...rest } = prev; return rest })
+                          }}>
+                            <span className="whitespace-normal break-words">{s.name}</span>
+                            <span className="text-xs text-slate-600 ml-2">{s.barcode || s.sku || s.category || ''}</span>
+                          </Button>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+                <Input label="Cantidad" type="text" value={editItemQtyText[idx] ?? String(it.qty)} onChange={e => {
+                  let val = e.target.value || ''
+                  val = val.replace(/[^\d,]/g, '').replace(/\./g, ',')
+                  const num = parseFloat(val.replace(',', '.'))
+                  setEditItemQtyText(prev => prev.map((x, i) => i === idx ? val : x))
+                  editUpdateItem(idx, { qty: isNaN(num) ? 0 : num })
+                }} />
+                <Input label="PU" type="text" value={editItemCostText[idx] ?? String(it.unitCost)} onChange={e => {
+                  let val = e.target.value || ''
+                  val = val.replace(/[^\d,]/g, '').replace(/\./g, ',')
+                  const num = parseMoney(val)
+                  setEditItemCostText(prev => prev.map((x, i) => i === idx ? val : x))
+                  editUpdateItem(idx, { unitCost: isNaN(num) ? 0 : num })
+                }} />
+                <div className="p-2 border rounded bg-gray-50">
+                  <div className="text-xs text-slate-600">PI</div>
+                  <div className="font-semibold">{formatMoney(piUnit)}</div>
+                </div>
+                <Button type="button" variant="danger" onClick={() => editRemoveItem(idx)}>Quitar</Button>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    </Modal>
+    <Modal isOpen={deleteOpen} title="Eliminar compra" onClose={() => setDeleteOpen(false)}
+      footer={(
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="secondary" onClick={() => setDeleteOpen(false)}>Cancelar</Button>
+          <Button type="button" variant="danger" onClick={performDeletePurchase}>Eliminar</Button>
+        </div>
+      )}
+    >
+      <div>¿Deseas eliminar esta compra? Se eliminarán también sus ítems.</div>
+    </Modal>
     </>
   )
 }

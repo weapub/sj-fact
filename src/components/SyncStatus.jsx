@@ -40,29 +40,7 @@ export default function SyncStatus() {
     refreshCounts()
   }, [])
 
-  async function handleExport() {
-    const json = await exportData()
-    const blob = new Blob([json], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'sj-facturacion-backup.json'
-    a.click()
-    URL.revokeObjectURL(url)
-    setStatus('exported')
-    setMessage('Datos exportados en JSON')
-    refreshCounts()
-  }
-
-  async function handleImport(e) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const text = await file.text()
-    await importData(text)
-    setStatus('imported')
-    setMessage('Datos importados desde JSON')
-    refreshCounts()
-  }
+  
 
   async function handleSyncRemote() {
     if (!isSupabaseConfigured() || !supabase) {

@@ -11,6 +11,7 @@ import Reports from './pages/Reports.jsx'
 import PriceCalculator from './pages/PriceCalculator.jsx'
 import Settings from './pages/Settings.jsx'
 import Purchases from './pages/Purchases.tsx'
+import Suppliers from './pages/Suppliers.jsx'
 import SyncStatus from './components/SyncStatus.jsx'
 import AuthStatus from './components/AuthStatus.jsx'
 import ConfigNotice from './components/ConfigNotice.jsx'
@@ -22,6 +23,14 @@ function AppLayout({ children }) {
     const cls = "w-4 h-4"
     if (name === 'facturas') return (<svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 6h8M8 10h8M8 14h5"/><path d="M6 2h12a2 2 0 0 1 2 2v18l-4-3-4 3-4-3-4 3V4a2 2 0 0 1 2-2z"/></svg>)
     if (name === 'clientes') return (<svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="8" cy="7" r="4"/><path d="M2 22a6 6 0 0 1 12 0"/><circle cx="17" cy="7" r="3"/><path d="M14 22a5 5 0 0 1 10 0"/></svg>)
+    if (name === 'proveedores') return (
+      <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M3 7h10v10H3z"/>
+        <path d="M13 11h4l4 4v2h-8z"/>
+        <circle cx="7" cy="19" r="2"/>
+        <circle cx="17" cy="19" r="2"/>
+      </svg>
+    )
     if (name === 'productos') return (<svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 16V8l-9-5-9 5v8l9 5 9-5z"/><path d="M12 3v18"/></svg>)
     if (name === 'listas') return (<svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6h.01M4 12h.01M4 18h.01"/></svg>)
     if (name === 'cuenta') return (<svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 10l9-7 9 7"/><path d="M5 22h14V12H5z"/></svg>)
@@ -38,6 +47,7 @@ function AppLayout({ children }) {
         <nav className="space-y-2">
           <NavLink to="/facturas" className={({ isActive }) => `block px-3 py-2 rounded ${isActive ? 'bg-blue-600 text-white' : 'hover:bg-gray-200'}`}><span className="inline-flex items-center gap-2"><Icon name="facturas"/>Facturas</span></NavLink>
           <NavLink to="/clientes" className={({ isActive }) => `block px-3 py-2 rounded ${isActive ? 'bg-blue-600 text-white' : 'hover:bg-gray-200'}`}><span className="inline-flex items-center gap-2"><Icon name="clientes"/>Clientes</span></NavLink>
+          <NavLink to="/proveedores" className={({ isActive }) => `block px-3 py-2 rounded ${isActive ? 'bg-blue-600 text-white' : 'hover:bg-gray-200'}`}><span className="inline-flex items-center gap-2"><Icon name="proveedores"/>Proveedores</span></NavLink>
           <NavLink to="/productos" className={({ isActive }) => `block px-3 py-2 rounded ${isActive ? 'bg-blue-600 text-white' : 'hover:bg-gray-200'}`}><span className="inline-flex items-center gap-2"><Icon name="productos"/>Productos</span></NavLink>
           <NavLink to="/listas" className={({ isActive }) => `block px-3 py-2 rounded ${isActive ? 'bg-blue-600 text-white' : 'hover:bg-gray-200'}`}><span className="inline-flex items-center gap-2"><Icon name="listas"/>Listas de precios</span></NavLink>
           <NavLink to="/cuenta" className={({ isActive }) => `block px-3 py-2 rounded ${isActive ? 'bg-blue-600 text-white' : 'hover:bg-gray-200'}`}><span className="inline-flex items-center gap-2"><Icon name="cuenta"/>Cuenta corriente</span></NavLink>
@@ -54,6 +64,7 @@ function AppLayout({ children }) {
             <nav className="space-y-2">
               <NavLink to="/facturas" onClick={() => setMenuOpen(false)} className={({ isActive }) => `block px-3 py-2 rounded ${isActive ? 'bg-blue-600 text-white' : 'hover:bg-gray-200'}`}><span className="inline-flex items-center gap-2"><Icon name="facturas"/>Facturas</span></NavLink>
               <NavLink to="/clientes" onClick={() => setMenuOpen(false)} className={({ isActive }) => `block px-3 py-2 rounded ${isActive ? 'bg-blue-600 text-white' : 'hover:bg-gray-200'}`}><span className="inline-flex items-center gap-2"><Icon name="clientes"/>Clientes</span></NavLink>
+              <NavLink to="/proveedores" onClick={() => setMenuOpen(false)} className={({ isActive }) => `block px-3 py-2 rounded ${isActive ? 'bg-blue-600 text-white' : 'hover:bg-gray-200'}`}><span className="inline-flex items-center gap-2"><Icon name="proveedores"/>Proveedores</span></NavLink>
               <NavLink to="/productos" onClick={() => setMenuOpen(false)} className={({ isActive }) => `block px-3 py-2 rounded ${isActive ? 'bg-blue-600 text-white' : 'hover:bg-gray-200'}`}><span className="inline-flex items-center gap-2"><Icon name="productos"/>Productos</span></NavLink>
               <NavLink to="/listas" onClick={() => setMenuOpen(false)} className={({ isActive }) => `block px-3 py-2 rounded ${isActive ? 'bg-blue-600 text-white' : 'hover:bg-gray-200'}`}><span className="inline-flex items-center gap-2"><Icon name="listas"/>Listas de precios</span></NavLink>
               <NavLink to="/cuenta" onClick={() => setMenuOpen(false)} className={({ isActive }) => `block px-3 py-2 rounded ${isActive ? 'bg-blue-600 text-white' : 'hover:bg-gray-200'}`}><span className="inline-flex items-center gap-2"><Icon name="cuenta"/>Cuenta corriente</span></NavLink>
@@ -89,6 +100,7 @@ export default function App() {
           <Route path="/" element={<Invoices />} />
           <Route path="/facturas" element={<Invoices />} />
           <Route path="/clientes" element={<Customers />} />
+          <Route path="/proveedores" element={<Suppliers />} />
           <Route path="/productos" element={<Products />} />
           <Route path="/listas" element={<PriceLists />} />
           <Route path="/cuenta" element={<Ledger />} />

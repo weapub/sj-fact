@@ -5,7 +5,7 @@ import Input from '../components/Input'
 import Button from '../components/Button'
 import { db } from '../data/db'
 import { formatMoney } from '../utils/format'
-import { useToast } from '../components/Toast'
+import { useToast } from '../components/ToastContext'
 
 export default function Reports() {
   const [customers, setCustomers] = useState([])

@@ -12,7 +12,6 @@ export default function InvoiceReport() {
   const invoiceId = Number(params.get('invoiceId'))
   const auto = params.get('auto') === '1'
   const minimal = params.get('minimal') === '1'
-  const docParam = params.get('doc') || ''
 
   const [invoice, setInvoice] = useState(null)
   const [customer, setCustomer] = useState(null)

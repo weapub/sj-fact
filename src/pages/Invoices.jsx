@@ -6,7 +6,7 @@ import Button from '../components/Button'
 import Input from '../components/Input'
 import Select from '../components/Select'
 import Modal from '../components/Modal'
-import { useToast } from '../components/Toast'
+import { useToast } from '../components/ToastContext'
 import { formatMoney } from '../utils/format'
 import Badge from '../components/Badge'
 
@@ -444,8 +444,6 @@ export default function Invoices() {
                         <div className="px-2 py-1 text-xs text-slate-600">Coincidencias</div>
                         {suggestions.map((s, i) => {
                           const isActive = i === Math.min(Math.max((itemActive[idx] ?? 0), 0), suggestions.length - 1)
-                          const pv = pricesByKey.get(Number(s.id)) || {}
-                          const price = pv.unidad ?? 0
                           return (
                             <Button type="button" key={s.id} variant="outline" size="sm" className={`w-full text-left px-2 py-1 flex items-center justify-between ${isActive ? 'bg-indigo-200 ring-2 ring-indigo-400' : 'hover:bg-gray-50'}`} onMouseDown={() => {
                               const qty = items[idx]?.qty ?? 0
