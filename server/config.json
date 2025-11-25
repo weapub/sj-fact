@@ -1,0 +1,10 @@
+{
+  "printer": {
+    "type": "network",
+    "ip": "192.168.0.50",
+    "port": 9100
+  },
+  "branch": "Sucursal Central",
+  "terminal": "Caja 1",
+  "jwtSecret": "change-this-secret"
+}

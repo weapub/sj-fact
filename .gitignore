@@ -1,0 +1,11 @@
+node_modules/
+client/node_modules/
+server/node_modules/
+client/dist/
+dist/
+.DS_Store
+*.log
+.env*
+server/data/*.sqlite*
+coverage/
+tmp/
