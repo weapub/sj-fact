@@ -220,12 +220,15 @@ export default function PriceLists() {
       </Card>
 
       <Card>
-        <Table>
+        <div className="relative overflow-x-auto">
+          <div className="pointer-events-none absolute left-0 top-0 h-full w-6 bg-gradient-to-r from-white to-transparent" />
+          <div className="pointer-events-none absolute right-0 top-0 h-full w-6 bg-gradient-to-l from-white to-transparent" />
+        <Table className="min-w-[640px] border border-slate-200 rounded">
           <thead>
-            <tr className="bg-slate-50 text-slate-700 text-left">
-              <th className="p-2 border border-slate-200">Nombre</th>
-              <th className="p-2 border border-slate-200">Moneda</th>
-              <th className="p-2 border border-slate-200">Acciones</th>
+            <tr className="text-slate-700 text-left">
+              <th className="p-2 border border-slate-200 sticky top-0 bg-slate-50">Nombre</th>
+              <th className="p-2 border border-slate-200 sticky top-0 bg-slate-50">Moneda</th>
+              <th className="p-2 border border-slate-200 sticky top-0 bg-slate-50">Acciones</th>
             </tr>
           </thead>
           <tbody>
@@ -236,9 +239,9 @@ export default function PriceLists() {
             ) : (
               lists.map(l => (
                 <tr key={l.id} className="border-t border-slate-200 hover:bg-slate-50">
-                  <td className="p-2 border border-slate-200">{l.name}</td>
-                  <td className="p-2 border border-slate-200"><Badge variant="info">{l.currency}</Badge></td>
-                  <td className="p-2 border border-slate-200">
+                  <td className="p-1 md:p-2 text-sm md:text-base border border-slate-200">{l.name}</td>
+                  <td className="p-1 md:p-2 text-sm md:text-base border border-slate-200"><Badge variant="info">{l.currency}</Badge></td>
+                  <td className="p-1 md:p-2 text-sm md:text-base border border-slate-200">
                     <div className="flex gap-2 flex-wrap">
                       <Button variant="primary" onClick={() => openEdit(l)}>Editar</Button>
                       <Button variant="secondary" onClick={() => duplicateList(l)}>Duplicar</Button>
@@ -251,6 +254,7 @@ export default function PriceLists() {
             )}
           </tbody>
         </Table>
+        </div>
       </Card>
       <Modal
         isOpen={editOpen}

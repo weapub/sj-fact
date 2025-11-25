@@ -46,6 +46,10 @@ export default function Products() {
   const [filterWeighable, setFilterWeighable] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [toDelete, setToDelete] = useState(null)
+  const [deleteAllOpen, setDeleteAllOpen] = useState(false)
+  const [resetAllOpen, setResetAllOpen] = useState(false)
+  const [confirmDeleteAllText, setConfirmDeleteAllText] = useState('')
+  const [confirmResetAllText, setConfirmResetAllText] = useState('')
   const toast = useToast()
   const [editOpen, setEditOpen] = useState(false)
   const [editErrors, setEditErrors] = useState({ name: '', price: '' })
@@ -125,6 +129,47 @@ export default function Products() {
     setDeleteOpen(false)
     setToDelete(null)
     toast.show('Producto eliminado')
+    await load()
+  }
+
+  async function performDeleteAll() {
+    const all = await db.products.toArray()
+    if (!all.length) { setDeleteAllOpen(false); toast.show('No hay productos'); return }
+    const ids = all.map(p => p.id).filter(Boolean)
+    await db.products.bulkDelete(ids)
+    await db.prices.where('productId').anyOf(ids).delete()
+    try {
+      const { deleteProductsAndPricesByKeys, isSupabaseConfigured } = await import('../data/cloud/supabase')
+      if (isSupabaseConfigured()) {
+        const skus = all.map(p => p.sku).filter(Boolean)
+        const names = all.map(p => p.name).filter(Boolean)
+        await deleteProductsAndPricesByKeys({ skus, names })
+      }
+    } catch {}
+    setDeleteAllOpen(false)
+    toast.show('Todos los productos fueron eliminados')
+    await load()
+  }
+
+  async function performResetAll() {
+    // Local: limpiar todas las tablas
+    await db.customers.clear()
+    await db.products.clear()
+    await db.priceLists.clear()
+    await db.prices.clear()
+    await db.invoices.clear()
+    await db.invoiceItems.clear()
+    await db.ledger.clear()
+    // Cloud: intentar borrar todo del owner
+    try {
+      const { deleteAllOwnerData, isSupabaseConfigured } = await import('../data/cloud/supabase')
+      if (isSupabaseConfigured()) {
+        await deleteAllOwnerData()
+      }
+    } catch {}
+    setResetAllOpen(false)
+    setConfirmResetAllText('')
+    toast.show('Datos reiniciados')
     await load()
   }
 
@@ -756,6 +801,8 @@ export default function Products() {
           </label>
         </div>
         <Button variant="primary" type="submit" className="md:col-span-4">Agregar producto</Button>
+        <Button variant="danger" type="button" className="md:col-span-4" onClick={() => setDeleteAllOpen(true)}>Borrar todos los productos</Button>
+        <Button variant="warning" type="button" className="md:col-span-4" onClick={() => setResetAllOpen(true)}>Borrar todo y reiniciar</Button>
       </form>
       </Card>
 
@@ -938,15 +985,18 @@ export default function Products() {
             </label>
           </div>
         </div>
-        <Table>
+        <div className="relative overflow-x-auto">
+          <div className="pointer-events-none absolute left-0 top-0 h-full w-6 bg-gradient-to-r from-white to-transparent" />
+          <div className="pointer-events-none absolute right-0 top-0 h-full w-6 bg-gradient-to-l from-white to-transparent" />
+        <Table className="min-w-[720px] border border-slate-200 rounded">
           <thead>
-            <tr className="bg-gray-50 text-left">
-              <th className="p-2">Código</th>
-              <th className="p-2">Descripción</th>
-              <th className="p-2">Categoría</th>
-              <th className="p-2">Pesable</th>
-              <th className="p-2">Precio</th>
-              <th className="p-2">Acciones</th>
+            <tr className="text-left">
+              <th className="p-2 sticky top-0 bg-gray-50">Código</th>
+              <th className="p-2 sticky top-0 bg-gray-50">Descripción</th>
+              <th className="p-2 sticky top-0 bg-gray-50">Categoría</th>
+              <th className="p-2 sticky top-0 bg-gray-50">Pesable</th>
+              <th className="p-2 sticky top-0 bg-gray-50">Precio</th>
+              <th className="p-2 sticky top-0 bg-gray-50">Acciones</th>
             </tr>
           </thead>
           <tbody>
@@ -962,7 +1012,7 @@ export default function Products() {
               const isEditing = editingId === p.id
               return (
                 <tr key={p.id} className="border-t hover:bg-gray-50">
-                  <td className="p-2">
+                  <td className="p-1 md:p-2 text-sm md:text-base">
                     {inlineEditingSkuId === p.id ? (
                       <input
                         ref={inlineSkuRef}
@@ -971,7 +1021,7 @@ export default function Products() {
                         onChange={e => setInlineSkuText(e.target.value)}
                         onBlur={saveInlineSku}
                         onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); saveInlineSku() } else if (e.key === 'Escape') { setInlineEditingSkuId(null) } }}
-                        className="w-36 border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        className="w-36 border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm md:text-base"
                         placeholder="Ej.: ABC123"
                       />
                     ) : (
@@ -981,10 +1031,10 @@ export default function Products() {
                       </div>
                     )}
                   </td>
-                  <td className="p-2">
+                  <td className="p-1 md:p-2 text-sm md:text-base">
                     {p.name}
                   </td>
-                  <td className="p-2">
+                  <td className="p-1 md:p-2 text-sm md:text-base">
                     {inlineEditingCategoryId === p.id ? (
                       <input
                         ref={inlineCategoryRef}
@@ -993,7 +1043,7 @@ export default function Products() {
                         onChange={e => setInlineCategoryText(e.target.value)}
                         onBlur={saveInlineCategory}
                         onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); saveInlineCategory() } else if (e.key === 'Escape') { setInlineEditingCategoryId(null) } }}
-                        className="w-40 border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        className="w-40 border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm md:text-base"
                         placeholder="Ej.: Almacén"
                       />
                     ) : (
@@ -1003,10 +1053,10 @@ export default function Products() {
                       </div>
                     )}
                   </td>
-                  <td className="p-2">
+                  <td className="p-1 md:p-2 text-sm md:text-base">
                     {p.weighable ? <Badge variant="success">Sí</Badge> : <Badge variant="default">No</Badge>}
                   </td>
-                  <td className="p-2">
+                  <td className="p-1 md:p-2 text-sm md:text-base">
 {(() => {
   const sel = priceLists.find(l => String(l.id) === selectedListId)
   const isEditingInline = inlineEditingPriceId === p.id
@@ -1032,7 +1082,7 @@ export default function Products() {
                     if (e.key === 'Enter') { e.preventDefault(); saveInlinePrice() }
                     else if (e.key === 'Escape') { setInlineEditingPriceId(null) }
                   }}
-                  className="w-28 border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-28 border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm md:text-base"
                   placeholder="Ej: 10,50"
                 />
                 {sel?.currency ? <span className="text-slate-600 text-xs align-middle">{sel.currency}</span> : null}
@@ -1068,7 +1118,7 @@ export default function Products() {
   )
 })()}
                   </td>
-                  <td className="p-2">
+                  <td className="p-1 md:p-2 text-sm md:text-base">
                     <div className="flex gap-2">
                       <Button variant="primary" onClick={() => openEdit(p)}>Editar</Button>
                       <Button variant="danger" onClick={() => confirmDelete(p.id)}>Eliminar</Button>
@@ -1079,6 +1129,7 @@ export default function Products() {
             })}
           </tbody>
         </Table>
+        </div>
       </Card>
       <Modal
         isOpen={editOpen}
@@ -1158,6 +1209,40 @@ export default function Products() {
         )}
       >
 <p className="text-slate-700">¿Deseás eliminar este producto? Se eliminarán también sus precios asociados. Si el producto está usado en facturas, no se podrá eliminar.</p>
+      </Modal>
+      <Modal
+        isOpen={resetAllOpen}
+        title="Borrar todo y empezar de nuevo"
+        onClose={() => setResetAllOpen(false)}
+        footer={(
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setResetAllOpen(false)}>Cancelar</Button>
+            <Button variant="warning" disabled={confirmResetAllText !== 'BORRAR'} onClick={performResetAll}>Borrar todo</Button>
+          </div>
+        )}
+      >
+        <p className="text-slate-700">Esto eliminará clientes, productos, listas, precios, facturas, ítems y movimientos locales. Si la nube está configurada y hay sesión, también se borrarán los datos del propietario en Supabase.</p>
+        <div className="mt-3">
+          <label className="block text-sm">Escribí BORRAR para confirmar</label>
+          <input type="text" className="mt-1 w-full border rounded px-3 py-2" value={confirmResetAllText} onChange={e => setConfirmResetAllText(e.target.value)} />
+        </div>
+      </Modal>
+      <Modal
+        isOpen={deleteAllOpen}
+        title="Borrar todos los productos"
+        onClose={() => setDeleteAllOpen(false)}
+        footer={(
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setDeleteAllOpen(false)}>Cancelar</Button>
+            <Button variant="danger" disabled={confirmDeleteAllText !== 'BORRAR'} onClick={performDeleteAll}>Borrar todos</Button>
+          </div>
+        )}
+      >
+        <p className="text-slate-700">Esta acción elimina todos los productos y sus precios asociados. Las facturas existentes no se modifican.</p>
+        <div className="mt-3">
+          <label className="block text-sm">Escribí BORRAR para confirmar</label>
+          <input type="text" className="mt-1 w-full border rounded px-3 py-2" value={confirmDeleteAllText} onChange={e => setConfirmDeleteAllText(e.target.value)} />
+        </div>
       </Modal>
     </div>
   )

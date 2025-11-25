@@ -155,10 +155,18 @@ export default function SyncStatus() {
         Importar JSON
         <input type="file" accept="application/json" className="hidden" onChange={handleImport} />
       </Button>
-      <Button variant="primary" size="sm" onClick={handleUploadOnly} disabled={!user || uploading}>{uploading ? 'Subiendo…' : 'Subir a la nube'}</Button>
-      <Button variant="primary" size="sm" onClick={handleSyncRemote} disabled={!user}>Sync nube</Button>
-      <Button variant="outline" size="sm" onClick={handleDownloadOnly} disabled={!user || downloading}>{downloading ? 'Descargando…' : 'Descargar'}</Button>
-      <Button variant="danger" size="sm" onClick={handleResetLocal}>Reset local</Button>
+      <button type="button" title={uploading ? 'Subiendo…' : 'Subir a la nube'} aria-label="Subir a la nube" onClick={handleUploadOnly} disabled={!user || uploading} className="px-2 py-2 rounded-md border bg-white hover:bg-gray-50 disabled:opacity-50">
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 16v2a4 4 0 0 1-4 4h-5a4 4 0 0 1-4-4v-3a4 4 0 0 1 4-4h1"/><path d="M12 12v9"/><path d="M8 16l4-4 4 4"/><path d="M20 16a4 4 0 0 0 0-8 5 5 0 0 0-9-3"/></svg>
+      </button>
+      <button type="button" title="Sincronizar con nube" aria-label="Sincronizar" onClick={handleSyncRemote} disabled={!user} className="px-2 py-2 rounded-md border bg-white hover:bg-gray-50 disabled:opacity-50">
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/><path d="M21 3v9h-9"/></svg>
+      </button>
+      <button type="button" title={downloading ? 'Descargando…' : 'Descargar de la nube'} aria-label="Descargar" onClick={handleDownloadOnly} disabled={!user || downloading} className="px-2 py-2 rounded-md border bg-white hover:bg-gray-50 disabled:opacity-50">
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M7 20h10a4 4 0 0 0 4-4v-3a4 4 0 0 0-4-4h-1"/><path d="M12 2v12"/><path d="M16 10l-4 4-4-4"/></svg>
+      </button>
+      <button type="button" title="Borrar base local" aria-label="Reset local" onClick={handleResetLocal} className="px-2 py-2 rounded-md border bg-white hover:bg-gray-50">
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18"/><path d="M8 6v14a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2V6"/><path d="M10 10v8M14 10v8"/><path d="M9 6l1-3h4l1 3"/></svg>
+      </button>
       <span className="text-[13px] text-slate-600">{status !== 'idle' ? message : 'Sincronización local/nube'}</span>
       {summary && (summary.filtered?.invoiceItems > 0 || summary.filtered?.prices > 0 || summary.remapped?.invoiceItems > 0 || summary.remapped?.prices > 0) && (
         <span className="text-[12px] text-amber-700 bg-amber-100 px-2 py-0.5 rounded-md">

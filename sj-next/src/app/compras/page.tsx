@@ -37,6 +37,19 @@ export default function ComprasPage() {
 
   const computePI = (cost: number, taxPct: number) => Number(cost || 0) * (1 + Number(taxPct || 0)/100)
 
+  async function savePurchase() {
+    if (!form.supplierId || !form.number) return
+    const total = items.reduce((acc, it) => acc + computePI(it.unitCost, form.taxPct) * Number(it.qty || 0), 0)
+    const purId = await db.purchases.add({ number: String(form.number), supplierId: Number(form.supplierId), date: new Date(form.date).toISOString(), total, taxPct: Number(form.taxPct || 0) })
+    if (items.length) {
+      await db.purchaseItems.bulkAdd(items.map(it => ({ purchaseId: purId, productId: Number(it.productId || 0), qty: Number(it.qty || 0), unitCost: Number(it.unitCost || 0), taxes: Number(form.taxPct || 0), totalCost: computePI(Number(it.unitCost || 0), Number(form.taxPct || 0)) * Number(it.qty || 0) })))
+    }
+    setItems([])
+    setItemQueries([])
+    setItemQtyText([])
+    setItemCostText([])
+  }
+
   return (
     <div className="max-w-7xl mx-auto space-y-6 p-6">
       <h2 className="text-2xl font-semibold tracking-tight text-slate-800">Compras</h2>
@@ -145,9 +158,10 @@ export default function ComprasPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3">
-                <div className="text-sm text-slate-700">{selected ? selected.name : '—'}</div>
-                <div className="grid grid-cols-1 gap-2">
+              <div className="overflow-x-auto mt-3">
+                <div className="min-w-[640px] grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <div className="text-sm text-slate-700">{selected ? selected.name : '—'}</div>
+                  <div className="grid grid-cols-1 gap-2 text-sm">
                   {lines.map(line => (
                     <div key={line.variant} className="flex items-center gap-2">
                       <span className="w-40">{line.label}</span>
@@ -169,11 +183,15 @@ export default function ComprasPage() {
                       }}>Aplicar</button>
                     </div>
                   ))}
+                  </div>
                 </div>
               </div>
             </div>
           )
         })}
+      </div>
+      <div className="fixed bottom-0 left-0 right-0 z-30 md:hidden bg-white border-t p-2">
+        <button className="w-full px-4 py-2 rounded-md bg-indigo-600 text-white" onClick={savePurchase}>Guardar compra</button>
       </div>
     </div>
   )

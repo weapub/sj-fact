@@ -56,30 +56,32 @@ export default function ListasPage() {
           </select>
         </div>
         {selectedListId ? (
-          <div className="overflow-auto">
-            <table className="min-w-full border border-slate-200 rounded">
+          <div className="relative overflow-x-auto">
+            <div className="pointer-events-none absolute left-0 top-0 h-full w-6 bg-gradient-to-r from-white to-transparent" />
+            <div className="pointer-events-none absolute right-0 top-0 h-full w-6 bg-gradient-to-l from-white to-transparent" />
+            <table className="min-w-[720px] border border-slate-200 rounded">
               <thead>
-                <tr className="bg-slate-50 text-slate-700 text-left">
-                  <th className="p-2">Producto</th>
-                  <th className="p-2">Variante</th>
-                  <th className="p-2">Precio</th>
-                  <th className="p-2">Acciones</th>
+                <tr className="text-slate-700 text-left">
+                  <th className="p-2 sticky top-0 bg-slate-50">Producto</th>
+                  <th className="p-2 sticky top-0 bg-slate-50">Variante</th>
+                  <th className="p-2 sticky top-0 bg-slate-50">Precio</th>
+                  <th className="p-2 sticky top-0 bg-slate-50">Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 {prices.map(pr => (
                   <tr key={`${pr.productId}-${pr.variant || 'unidad'}`} className="border-t hover:bg-slate-50">
-                    <td className="p-2">{productName(pr.productId)}</td>
-                    <td className="p-2">{pr.variant || 'unidad'}</td>
-                    <td className="p-2">
+                    <td className="p-1 md:p-2 text-sm md:text-base">{productName(pr.productId)}</td>
+                    <td className="p-1 md:p-2 text-sm md:text-base">{pr.variant || 'unidad'}</td>
+                    <td className="p-1 md:p-2 text-sm md:text-base">
                       {inlineId === pr.productId && (variant === (pr.variant || 'unidad')) ? (
-                        <input className="w-28 border rounded px-2 py-1" value={inlineText} onChange={e => setInlineText(e.target.value)} onBlur={() => saveEdit(pr.productId)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); saveEdit(pr.productId) } else if (e.key === 'Escape') { setInlineId(null) } }} />
+                        <input className="w-28 border rounded px-2 py-1 text-sm md:text-base" value={inlineText} onChange={e => setInlineText(e.target.value)} onBlur={() => saveEdit(pr.productId)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); saveEdit(pr.productId) } else if (e.key === 'Escape') { setInlineId(null) } }} />
                       ) : (
                         <span>{pr.price.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</span>
                       )}
                     </td>
-                    <td className="p-2">
-                      <select className="border rounded px-2 py-1 mr-2" value={variant} onChange={e => setVariant(e.target.value)}>
+                    <td className="p-1 md:p-2 text-sm md:text-base">
+                      <select className="border rounded px-2 py-1 mr-2 text-sm md:text-base" value={variant} onChange={e => setVariant(e.target.value)}>
                         <option value="unidad">Unidad</option>
                         <option value="caja">Caja</option>
                         <option value="mayor">Mayorista</option>
@@ -89,7 +91,7 @@ export default function ListasPage() {
                         <option value="x_mpz">X MPZ</option>
                         <option value="x_kg">X KG</option>
                       </select>
-                      <button className="px-3 py-1 rounded border" onClick={() => startEdit(pr)}>Editar</button>
+                      <button className="px-3 py-1 rounded border text-sm md:text-base" onClick={() => startEdit(pr)}>Editar</button>
                     </td>
                   </tr>
                 ))}

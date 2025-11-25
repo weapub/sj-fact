@@ -10,3 +10,5 @@ coverage/
 sj-next/.next/
 sj-next/node_modules/
 sj-next/.vercel/
+
+.vercel

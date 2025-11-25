@@ -406,3 +406,94 @@ export async function resendEmailConfirmation(email) {
   if (error) throw error
   return data
 }
+
+export async function deleteProductsAndPricesByKeys({ skus = [], names = [] }) {
+  if (!isSupabaseConfigured() || !supabase) {
+    throw new Error('Supabase no configurado. Agregue VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY')
+  }
+  const { data: userData } = await supabase.auth.getUser()
+  const user = userData?.user
+  if (!user) throw new Error('Debe iniciar sesión para sincronizar')
+  const ownerId = user.id
+  const cleanSkus = (skus || []).map(s => (s || '').trim()).filter(Boolean)
+  const cleanNames = (names || []).map(n => (n || '').trim().toLowerCase()).filter(Boolean)
+  if (cleanSkus.length === 0 && cleanNames.length === 0) return { deletedProducts: 0, deletedPrices: 0 }
+  // Buscar productos remotos por owner + sku o nombre
+  let query = supabase.from('products').select('id, sku, name').eq('owner', ownerId)
+  if (cleanSkus.length > 0) query = query.in('sku', cleanSkus)
+  const { data: bySku, error: errSku } = await query
+  if (errSku) throw errSku
+  let remote = bySku || []
+  if (cleanNames.length > 0) {
+    // Agregar productos por nombre que no tengan SKU (o no coincidan por SKU)
+    const { data: byName, error: errName } = await supabase.from('products').select('id, sku, name').eq('owner', ownerId)
+    if (errName) throw errName
+    const nameSet = new Set(cleanNames)
+    const already = new Set((remote || []).map(r => r.id))
+    for (const r of (byName || [])) {
+      const nm = (r.name || '').trim().toLowerCase()
+      if (nameSet.has(nm) && !already.has(r.id)) remote.push(r)
+    }
+  }
+  const ids = (remote || []).map(r => r.id).filter(Boolean)
+  if (ids.length === 0) return { deletedProducts: 0, deletedPrices: 0 }
+  const { error: delPricesErr, count: pricesCount } = await supabase.from('prices').delete({ count: 'exact' }).in('productid', ids)
+  if (delPricesErr) throw delPricesErr
+  const { error: delProdsErr, count: prodsCount } = await supabase.from('products').delete({ count: 'exact' }).in('id', ids)
+  if (delProdsErr) throw delProdsErr
+  return { deletedProducts: prodsCount || 0, deletedPrices: pricesCount || 0 }
+}
+
+export async function deleteAllOwnerData() {
+  if (!isSupabaseConfigured() || !supabase) {
+    throw new Error('Supabase no configurado. Agregue VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY')
+  }
+  const { data: userData } = await supabase.auth.getUser()
+  const user = userData?.user
+  if (!user) throw new Error('Debe iniciar sesión para sincronizar')
+  const ownerId = user.id
+  // Obtener ids relacionados
+  const { data: prodRows, error: prodErr } = await supabase.from('products').select('id').eq('owner', ownerId)
+  if (prodErr) throw prodErr
+  const productIds = (prodRows ?? []).map(r => r.id)
+  const { data: listRows, error: listErr } = await supabase.from('pricelists').select('id').eq('owner', ownerId)
+  if (listErr) throw listErr
+  const listIds = (listRows ?? []).map(r => r.id)
+  const { data: invRows, error: invErr } = await supabase.from('invoices').select('id').eq('owner', ownerId)
+  if (invErr) throw invErr
+  const invoiceIds = (invRows ?? []).map(r => r.id)
+  // Borrar dependientes primero
+  if (productIds.length) {
+    const delPricesByProd = await supabase.from('prices').delete({ count: 'exact' }).in('productid', productIds)
+    if (delPricesByProd.error) throw delPricesByProd.error
+    const delItemsByProd = await supabase.from('invoiceitems').delete({ count: 'exact' }).in('productid', productIds)
+    if (delItemsByProd.error) throw delItemsByProd.error
+  }
+  if (listIds.length) {
+    const delPricesByList = await supabase.from('prices').delete({ count: 'exact' }).in('listid', listIds)
+    if (delPricesByList.error) throw delPricesByList.error
+  }
+  if (invoiceIds.length) {
+    const delItemsByInv = await supabase.from('invoiceitems').delete({ count: 'exact' }).in('invoiceid', invoiceIds)
+    if (delItemsByInv.error) throw delItemsByInv.error
+  }
+  const delLedger = await supabase.from('ledger').delete({ count: 'exact' }).eq('owner', ownerId)
+  if (delLedger.error) throw delLedger.error
+  const delInvoices = await supabase.from('invoices').delete({ count: 'exact' }).eq('owner', ownerId)
+  if (delInvoices.error) throw delInvoices.error
+  const delLists = await supabase.from('pricelists').delete({ count: 'exact' }).eq('owner', ownerId)
+  if (delLists.error) throw delLists.error
+  const delProducts = await supabase.from('products').delete({ count: 'exact' }).eq('owner', ownerId)
+  if (delProducts.error) throw delProducts.error
+  const delCustomers = await supabase.from('customers').delete({ count: 'exact' }).eq('owner', ownerId)
+  if (delCustomers.error) throw delCustomers.error
+  return {
+    deleted: {
+      customers: delCustomers.count || 0,
+      products: delProducts.count || 0,
+      priceLists: delLists.count || 0,
+      invoices: delInvoices.count || 0,
+      ledger: delLedger.count || 0,
+    }
+  }
+}

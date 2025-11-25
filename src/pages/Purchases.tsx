@@ -101,6 +101,7 @@ export default function Purchases() {
   }
 
   return (
+    <>
     <div className="max-w-7xl mx-auto space-y-6 p-4">
       <h2 className="text-2xl font-bold tracking-tight text-slate-800">Compras</h2>
 
@@ -282,15 +283,17 @@ export default function Purchases() {
       </Card>
 
       <Card title="Compras recientes">
-        <div className="overflow-auto">
-          <table className="min-w-full border border-slate-200 rounded">
+        <div className="relative overflow-x-auto">
+          <div className="pointer-events-none absolute left-0 top-0 h-full w-6 bg-gradient-to-r from-white to-transparent" />
+          <div className="pointer-events-none absolute right-0 top-0 h-full w-6 bg-gradient-to-l from-white to-transparent" />
+          <table className="min-w-[640px] border border-slate-200 rounded">
             <thead>
-              <tr className="bg-slate-50 text-slate-700">
-                <th className="text-left px-3 py-2 border border-slate-200">Número</th>
-                <th className="text-left px-3 py-2 border border-slate-200">Proveedor</th>
-                <th className="text-left px-3 py-2 border border-slate-200">Fecha</th>
-                <th className="text-left px-3 py-2 border border-slate-200">Impuestos</th>
-                <th className="text-right px-3 py-2 border border-slate-200">Total</th>
+              <tr className="text-slate-700">
+                <th className="text-left px-3 py-2 border border-slate-200 sticky top-0 bg-slate-50">Número</th>
+                <th className="text-left px-3 py-2 border border-slate-200 sticky top-0 bg-slate-50">Proveedor</th>
+                <th className="text-left px-3 py-2 border border-slate-200 sticky top-0 bg-slate-50">Fecha</th>
+                <th className="text-left px-3 py-2 border border-slate-200 sticky top-0 bg-slate-50">Impuestos</th>
+                <th className="text-right px-3 py-2 border border-slate-200 sticky top-0 bg-slate-50">Total</th>
               </tr>
             </thead>
             <tbody>
@@ -303,11 +306,11 @@ export default function Purchases() {
                 const sup = suppliers.find(s => s.id === Number(p.supplierId))
                 return (
                   <tr key={p.id} className="hover:bg-slate-50">
-                    <td className="px-3 py-2 border border-slate-200">{p.number}</td>
-                    <td className="px-3 py-2 border border-slate-200">{sup ? sup.name : `#${p.supplierId}`}</td>
-                    <td className="px-3 py-2 border border-slate-200">{new Date(p.date).toLocaleDateString()}</td>
-                    <td className="px-3 py-2 border border-slate-200">{String(p.taxPct)}%</td>
-                    <td className="px-3 py-2 border border-slate-200 text-right">{formatMoney(p.total)}</td>
+                    <td className="px-2 md:px-3 py-1 md:py-2 text-sm md:text-base border border-slate-200">{p.number}</td>
+                    <td className="px-2 md:px-3 py-1 md:py-2 text-sm md:text-base border border-slate-200">{sup ? sup.name : `#${p.supplierId}`}</td>
+                    <td className="px-2 md:px-3 py-1 md:py-2 text-sm md:text-base border border-slate-200">{new Date(p.date).toLocaleDateString()}</td>
+                    <td className="px-2 md:px-3 py-1 md:py-2 text-sm md:text-base border border-slate-200">{String(p.taxPct)}%</td>
+                    <td className="px-2 md:px-3 py-1 md:py-2 text-sm md:text-base border border-slate-200 text-right">{formatMoney(p.total)}</td>
                   </tr>
                 )
               })}
@@ -316,5 +319,9 @@ export default function Purchases() {
         </div>
       </Card>
     </div>
+    <div className="fixed bottom-0 left-0 right-0 z-30 md:hidden bg-white border-t p-2">
+      <Button type="button" variant="primary" className="w-full" onClick={savePurchase}>Guardar compra</Button>
+    </div>
+    </>
   )
 }
