@@ -143,6 +143,19 @@ function App() {
   const quickCodeRef = useRef<HTMLInputElement|null>(null)
   const quickQtyRef = useRef<HTMLInputElement|null>(null)
   const [lastQuickCode, setLastQuickCode] = useState<string|null>(null)
+  const [suppliers, setSuppliers] = useState<{ id:number; name:string }[]>([])
+  const [selectedSupplier, setSelectedSupplier] = useState<number | null>(null)
+  const [editingSupplierId, setEditingSupplierId] = useState<number | null>(null)
+  const [suppliersFormName, setSuppliersFormName] = useState('')
+  const [suppliersFormContact, setSuppliersFormContact] = useState('')
+  const [suppliersFormPhone, setSuppliersFormPhone] = useState('')
+  const [suppliersFormEmail, setSuppliersFormEmail] = useState('')
+  const [buyCode, setBuyCode] = useState('')
+  const [buyQty, setBuyQty] = useState('1')
+  const [buyPrice, setBuyPrice] = useState('')
+  const [purchaseItems, setPurchaseItems] = useState<CartItem[]>([])
+  const [purchases, setPurchases] = useState<{ id:number; total:number; created_at:number; supplier_name:string|null }[]>([])
+  const [editingPurchaseId, setEditingPurchaseId] = useState<number | null>(null)
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -160,6 +173,8 @@ function App() {
     }
     fetchProducts()
   }, [token])
+
+  
 
   // Atajo de teclado: abrir búsqueda con tecla A (si no se escribe en un input)
   useEffect(() => {
@@ -324,6 +339,113 @@ function App() {
     )
   }
 
+  const addPurchaseLine = () => {
+    const raw = buyCode.trim()
+    let code = raw
+    let qty = Math.max(1, parseInt(buyQty || '1', 10))
+    const starIndex = raw.indexOf('*')
+    const plusIndex = raw.indexOf('+')
+    const sepIndex = starIndex >= 0 ? starIndex : (plusIndex >= 0 ? plusIndex : -1)
+    if (sepIndex >= 0) {
+      code = raw.slice(0, sepIndex).trim()
+      const qtyStr = raw.slice(sepIndex + 1).trim()
+      const qParsed = parseInt(qtyStr, 10)
+      if (!isNaN(qParsed) && qParsed > 0) qty = qParsed
+    }
+    const p = products.find(pr => pr.sku.toLowerCase() === code.toLowerCase() || String(pr.id) === code)
+    if (!p) { alert('Código no encontrado'); return }
+    const priceNum = parseFloat((buyPrice || '').replace(',', '.'))
+    if (!isFinite(priceNum) || priceNum <= 0) { alert('Precio inválido'); return }
+    setPurchaseItems(curr => {
+      const idx = curr.findIndex(c => c.id === p.id)
+      if (idx >= 0) {
+        const next = [...curr]
+        next[idx] = { ...next[idx], qty: next[idx].qty + qty, price: priceNum }
+        return next
+      }
+      return [...curr, { id: p.id, name: p.name, price: priceNum, qty }]
+    })
+    setBuyCode('')
+    setBuyQty('1')
+    setBuyPrice('')
+  }
+
+  const savePurchase = async () => {
+    if (!token) return alert('Requiere login')
+    if (purchaseItems.length === 0) return
+    const body = { supplier_id: selectedSupplier, items: purchaseItems.map(i => ({ id: i.id, qty: i.qty, price: i.price })) }
+    const url = editingPurchaseId ? `/api/purchases/${editingPurchaseId}` : '/api/purchases'
+    const method = editingPurchaseId ? 'PUT' : 'POST'
+    const res = await fetch(url, { method, headers: { 'Content-Type':'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(body) })
+    if (!res.ok) {
+      try { const err = await res.json(); alert('No se pudo guardar: ' + (err.error || res.status)) } catch { alert('No se pudo guardar') }
+      return
+    }
+    setPurchaseItems([])
+    setEditingPurchaseId(null)
+    try {
+      const pr = await fetch('/api/purchases', { headers: { Authorization: `Bearer ${token}` } })
+      setPurchases(await pr.json())
+    } catch {}
+  }
+
+  const editPurchase = async (id: number) => {
+    if (!token) return
+    try {
+      const res = await fetch(`/api/purchases/${id}`, { headers: { Authorization: `Bearer ${token}` } })
+      const data = await res.json()
+      setEditingPurchaseId(id)
+      setSelectedSupplier(data.purchase.supplier_id || null)
+      setPurchaseItems(data.items.map((r:any)=> ({ id: r.product_id, name: r.name, price: r.price, qty: r.qty })))
+    } catch {}
+  }
+
+  const deletePurchase = async (id: number) => {
+    if (!token) return
+    if (!confirm('¿Eliminar compra?')) return
+    const res = await fetch(`/api/purchases/${id}`, { method:'DELETE', headers: { Authorization: `Bearer ${token}` } })
+    if (!res.ok) { alert('No se pudo eliminar'); return }
+    setPurchases(prev => prev.filter(p => p.id !== id))
+  }
+
+  const resetSupplierForm = () => {
+    setEditingSupplierId(null)
+    setSuppliersFormName('')
+    setSuppliersFormContact('')
+    setSuppliersFormPhone('')
+    setSuppliersFormEmail('')
+  }
+
+  const saveSupplier = async () => {
+    if (!token) return alert('Requiere login')
+    const body: any = { name: suppliersFormName, contact: suppliersFormContact || undefined, phone: suppliersFormPhone || undefined, email: suppliersFormEmail || undefined }
+    const url = editingSupplierId ? `/api/suppliers/${editingSupplierId}` : '/api/suppliers'
+    const method = editingSupplierId ? 'PUT' : 'POST'
+    const res = await fetch(url, { method, headers: { 'Content-Type':'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(body) })
+    if (!res.ok) { alert('No se pudo guardar proveedor'); return }
+    resetSupplierForm()
+    try {
+      const rs = await fetch('/api/suppliers')
+      setSuppliers(await rs.json())
+    } catch {}
+  }
+
+  const editSupplier = (s: any) => {
+    setEditingSupplierId(s.id)
+    setSuppliersFormName(s.name || '')
+    setSuppliersFormContact(s.contact || '')
+    setSuppliersFormPhone(s.phone || '')
+    setSuppliersFormEmail(s.email || '')
+  }
+
+  const deleteSupplier = async (id: number) => {
+    if (!token) return
+    if (!confirm('¿Eliminar proveedor?')) return
+    const res = await fetch(`/api/suppliers/${id}`, { method:'DELETE', headers: { Authorization: `Bearer ${token}` } })
+    if (!res.ok) { alert('No se pudo eliminar'); return }
+    setSuppliers(prev => prev.filter(s => s.id !== id))
+  }
+
   const removeItem = (id: number) => {
     setCart((curr) => curr.filter((c) => c.id !== id))
   }
@@ -341,7 +463,7 @@ function App() {
   const cartTotal = cart.reduce((s, i) => s + i.price * i.qty, 0)
   const paidSoFar = payments.reduce((s,p)=> s + p.amount, 0)
   const remaining = Math.max(0, Number((cartTotal - paidSoFar).toFixed(2)))
-  const [activeSection, setActiveSection] = useState<'ventas'|'consultar'|'cuentas'|'etiquetas'|'inventario'|'informe'|'compras'>('ventas')
+  const [activeSection, setActiveSection] = useState<'ventas'|'consultar'|'cuentas'|'etiquetas'|'inventario'|'informe'|'compras'|'proveedores'>('ventas')
   const sectionLabel = (s: typeof activeSection) => (
     s==='ventas' ? 'Ventas' :
     s==='consultar' ? 'Consultar ventas' :
@@ -349,8 +471,29 @@ function App() {
     s==='etiquetas' ? 'Impresión de etiquetas' :
     s==='inventario' ? 'Inventario' :
     s==='informe' ? 'Informe de ventas' :
-    'Compras'
+    s==='compras' ? 'Compras' :
+    'Proveedores'
   )
+
+  useEffect(() => {
+    const fetchSuppliers = async () => {
+      try {
+        const res = await fetch('/api/suppliers')
+        setSuppliers(await res.json())
+      } catch {}
+    }
+    const fetchPurchases = async () => {
+      if (!token) return
+      try {
+        const res = await fetch('/api/purchases', { headers: { Authorization: `Bearer ${token}` } })
+        setPurchases(await res.json())
+      } catch {}
+    }
+    if (activeSection === 'compras') {
+      fetchSuppliers()
+      fetchPurchases()
+    }
+  }, [activeSection, token])
 
   const startCheckout = () => {
     if (!user || !token) return alert('Requiere login')
@@ -493,6 +636,7 @@ function App() {
             <button className={activeSection==='inventario'?'sidebar-item active':'sidebar-item'} onClick={()=>setActiveSection('inventario')}><Icon name="box" className="icon" />Inventario</button>
             <button className={activeSection==='informe'?'sidebar-item active':'sidebar-item'} onClick={()=>setActiveSection('informe')}><Icon name="chart" className="icon" />Informe de ventas</button>
             <button className={activeSection==='compras'?'sidebar-item active':'sidebar-item'} onClick={()=>setActiveSection('compras')}><Icon name="bag" className="icon" />Compras</button>
+            <button className={activeSection==='proveedores'?'sidebar-item active':'sidebar-item'} onClick={()=>setActiveSection('proveedores')}><Icon name="user" className="icon" />Proveedores</button>
           </div>
         </aside>
         {activeSection==='ventas' ? (
@@ -738,12 +882,140 @@ function App() {
         </main>
         ) : (
           <main className="main">
-            <section className="left" style={{ gridColumn: '1 / -1' }}>
-              <h2>{sectionLabel(activeSection)}</h2>
-              <p style={{ color:'var(--color-text-muted)' }}>
-                Próximamente: módulo de {sectionLabel(activeSection).toLowerCase()}.
-              </p>
-            </section>
+            {activeSection==='compras' ? (
+              <section className="left" style={{ gridColumn: '1 / -1' }}>
+                <h2><Icon name="bag" className="icon" /> Compras</h2>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:8 }}>
+                  <select value={selectedSupplier ?? ''} onChange={(e)=> setSelectedSupplier(e.target.value ? parseInt(e.target.value,10) : null)}>
+                    <option value="">Proveedor</option>
+                    {suppliers.map(s=> (<option key={s.id} value={s.id}>{s.name}</option>))}
+                  </select>
+                  <input placeholder="Código / SKU" value={buyCode} onChange={(e)=>setBuyCode(e.target.value)} />
+                  <input placeholder="Cant." type="number" min={1} step={1} value={buyQty} onChange={(e)=>setBuyQty(e.target.value)} />
+                  <input placeholder="Precio" inputMode="decimal" value={buyPrice} onChange={(e)=>setBuyPrice(e.target.value)} />
+                </div>
+                <div className="actions" style={{ marginTop:8 }}>
+                  <button className="secondary" onClick={addPurchaseLine}>Agregar línea</button>
+                  <button className="primary" disabled={purchaseItems.length===0} onClick={savePurchase}>{editingPurchaseId? 'Guardar cambios' : 'Registrar compra'}</button>
+                </div>
+                <table className="cart-table" style={{ marginTop:8 }}>
+                  <thead>
+                    <tr>
+                      <th>Producto</th>
+                      <th>Precio</th>
+                      <th>Cant.</th>
+                      <th>Total</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {purchaseItems.map((c) => (
+                      <tr key={c.id}>
+                        <td>{c.name}</td>
+                        <td>${c.price.toFixed(2)}</td>
+                        <td className="qty">
+                          <button onClick={() => setPurchaseItems(curr=> curr.map(i=> i.id===c.id? { ...i, qty: Math.max(1, i.qty - 1) }: i))}>-</button>
+                          <span>{c.qty}</span>
+                          <button onClick={() => setPurchaseItems(curr=> curr.map(i=> i.id===c.id? { ...i, qty: i.qty + 1 }: i))}>+</button>
+                        </td>
+                        <td>${(c.price * c.qty).toFixed(2)}</td>
+                        <td>
+                          <button className="remove" onClick={() => setPurchaseItems(curr=> curr.filter(i=> i.id!==c.id))}>x</button>
+                        </td>
+                      </tr>
+                    ))}
+                    {purchaseItems.length === 0 && (
+                      <tr>
+                        <td colSpan={5} style={{ textAlign: 'center' }}>Sin líneas</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+                <h3 style={{ marginTop:16 }}>Últimas compras</h3>
+                <table className="cart-table">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Proveedor</th>
+                      <th>Total</th>
+                      <th>Fecha</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {purchases.map(p => (
+                      <tr key={p.id}>
+                        <td>{p.id}</td>
+                        <td>{p.supplier_name || '-'}</td>
+                        <td>${p.total.toFixed(2)}</td>
+                        <td>{new Date(p.created_at).toLocaleString()}</td>
+                        <td>
+                          <button className="secondary" onClick={()=>editPurchase(p.id)}>Editar</button>
+                          <button className="danger" onClick={()=>deletePurchase(p.id)}>Eliminar</button>
+                        </td>
+                      </tr>
+                    ))}
+                    {purchases.length===0 && (
+                      <tr>
+                        <td colSpan={5} style={{ textAlign:'center' }}>Sin compras</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </section>
+            ) : activeSection==='proveedores' ? (
+              <section className="left" style={{ gridColumn: '1 / -1' }}>
+                <h2><Icon name="user" className="icon" /> Proveedores</h2>
+                <div style={{ display:'grid', gridTemplateColumns:'2fr 1fr 1fr 1fr', gap:8 }}>
+                  <input placeholder="Nombre" value={suppliersFormName} onChange={(e)=>setSuppliersFormName(e.target.value)} />
+                  <input placeholder="Contacto" value={suppliersFormContact} onChange={(e)=>setSuppliersFormContact(e.target.value)} />
+                  <input placeholder="Teléfono" value={suppliersFormPhone} onChange={(e)=>setSuppliersFormPhone(e.target.value)} />
+                  <input placeholder="Email" value={suppliersFormEmail} onChange={(e)=>setSuppliersFormEmail(e.target.value)} />
+                </div>
+                <div className="actions" style={{ marginTop:8 }}>
+                  <button className="secondary" onClick={resetSupplierForm}>Limpiar</button>
+                  <button className="primary" onClick={saveSupplier}>{editingSupplierId? 'Guardar proveedor' : 'Crear proveedor'}</button>
+                </div>
+                <h3 style={{ marginTop:16 }}>Listado</h3>
+                <table className="cart-table">
+                  <thead>
+                    <tr>
+                      <th>Nombre</th>
+                      <th>Contacto</th>
+                      <th>Teléfono</th>
+                      <th>Email</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {suppliers.map(s => (
+                      <tr key={s.id}>
+                        <td>{s.name}</td>
+                        <td>{(s as any).contact || '-'}</td>
+                        <td>{(s as any).phone || '-'}</td>
+                        <td>{(s as any).email || '-'}</td>
+                        <td>
+                          <button className="secondary" onClick={()=>editSupplier(s)}>Editar</button>
+                          <button className="danger" onClick={()=>deleteSupplier(s.id)}>Eliminar</button>
+                        </td>
+                      </tr>
+                    ))}
+                    {suppliers.length===0 && (
+                      <tr>
+                        <td colSpan={5} style={{ textAlign:'center' }}>Sin proveedores</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </section>
+            ) : (
+              <section className="left" style={{ gridColumn: '1 / -1' }}>
+                <h2>{sectionLabel(activeSection)}</h2>
+                <p style={{ color:'var(--color-text-muted)' }}>
+                  Próximamente: módulo de {sectionLabel(activeSection).toLowerCase()}.
+                </p>
+              </section>
+            )}
           </main>
         )}
       </div>

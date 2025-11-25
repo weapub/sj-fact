@@ -265,6 +265,283 @@ app.delete('/api/products/:id', (req, res) => {
   });
 });
 
+// Proveedores
+app.get('/api/suppliers', (req, res) => {
+  db.all('SELECT * FROM suppliers WHERE active = 1 ORDER BY name ASC', [], (err, rows) => {
+    if (err) return res.status(500).json({ error: 'DB_ERROR', details: err.message });
+    res.json(rows);
+  });
+});
+
+app.post('/api/suppliers', authMiddleware, (req, res) => {
+  const { name, contact, phone, email } = req.body;
+  if (!name) return res.status(400).json({ error: 'VALIDATION_ERROR' });
+  db.run(
+    'INSERT INTO suppliers (name, contact, phone, email, active) VALUES (?, ?, ?, ?, 1)',
+    [name, contact || null, phone || null, email || null],
+    function (err) {
+      if (err) return res.status(500).json({ error: 'DB_ERROR', details: err.message });
+      res.status(201).json({ id: this.lastID });
+    }
+  );
+});
+
+app.put('/api/suppliers/:id', authMiddleware, (req, res) => {
+  const { id } = req.params;
+  const { name, contact, phone, email, active } = req.body;
+  db.run(
+    'UPDATE suppliers SET name = ?, contact = ?, phone = ?, email = ?, active = ? WHERE id = ?',
+    [name, contact || null, phone || null, email || null, active ? 1 : 0, id],
+    function (err) {
+      if (err) return res.status(500).json({ error: 'DB_ERROR', details: err.message });
+      res.json({ changed: this.changes });
+    }
+  );
+});
+
+app.delete('/api/suppliers/:id', authMiddleware, (req, res) => {
+  const { id } = req.params;
+  db.run('UPDATE suppliers SET active = 0 WHERE id = ?', [id], function (err) {
+    if (err) return res.status(500).json({ error: 'DB_ERROR', details: err.message });
+    res.json({ changed: this.changes });
+  });
+});
+
+// Compras
+app.get('/api/purchases', authMiddleware, (req, res) => {
+  const sql = `SELECT p.id, p.total, p.created_at, s.name AS supplier_name
+               FROM purchases p LEFT JOIN suppliers s ON p.supplier_id = s.id
+               ORDER BY p.created_at DESC LIMIT 100`;
+  db.all(sql, [], (err, rows) => {
+    if (err) return res.status(500).json({ error: 'DB_ERROR', details: err.message });
+    res.json(rows);
+  });
+});
+
+app.get('/api/purchases/:id', authMiddleware, (req, res) => {
+  const { id } = req.params;
+  db.get('SELECT * FROM purchases WHERE id = ?', [id], (err, row) => {
+    if (err) return res.status(500).json({ error: 'DB_ERROR', details: err.message });
+    if (!row) return res.status(404).json({ error: 'NOT_FOUND' });
+    db.all('SELECT * FROM purchase_items WHERE purchase_id = ?', [id], (err2, items) => {
+      if (err2) return res.status(500).json({ error: 'DB_ERROR', details: err2.message });
+      res.json({ purchase: row, items });
+    });
+  });
+});
+
+app.post('/api/purchases', authMiddleware, (req, res) => {
+  const { supplier_id, items } = req.body;
+  if (!Array.isArray(items) || items.length === 0) return res.status(400).json({ error: 'EMPTY_ITEMS' });
+  const productIds = items.map((it) => it.id);
+  const placeholders = productIds.map(() => '?').join(',');
+  db.all(`SELECT id, name, price, stock FROM products WHERE id IN (${placeholders})`, productIds, (err2, rows) => {
+    if (err2) return res.status(500).json({ error: 'DB_ERROR', details: err2.message });
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    for (const it of items) {
+      const pr = byId.get(it.id);
+      if (!pr) return res.status(400).json({ error: 'PRODUCT_NOT_FOUND', details: it.id });
+      if (it.price == null) it.price = pr.price;
+      if (it.qty == null || it.qty <= 0) return res.status(400).json({ error: 'INVALID_QTY' });
+    }
+    const total = items.reduce((s, it) => s + (it.price * it.qty), 0);
+    db.serialize(() => {
+      db.run('BEGIN TRANSACTION');
+      const createdAt = Date.now();
+      db.run(
+        'INSERT INTO purchases (supplier_id, user_id, total, created_at) VALUES (?, ?, ?, ?)',
+        [supplier_id || null, req.user.id, total, createdAt],
+        function (err3) {
+          if (err3) {
+            db.run('ROLLBACK');
+            return res.status(500).json({ error: 'DB_ERROR', details: err3.message });
+          }
+          const purchaseId = this.lastID;
+          let pending = items.length;
+          let failed = false;
+          for (const it of items) {
+            const lineTotal = it.price * it.qty;
+            db.run(
+              'INSERT INTO purchase_items (purchase_id, product_id, name, price, qty, line_total) VALUES (?, ?, ?, ?, ?, ?)',
+              [purchaseId, it.id, byId.get(it.id).name, it.price, it.qty, lineTotal],
+              function (err4) {
+                if (err4 && !failed) {
+                  failed = true;
+                  db.run('ROLLBACK');
+                  return res.status(500).json({ error: 'DB_ERROR', details: err4.message });
+                }
+              }
+            );
+            db.run(
+              'UPDATE products SET stock = stock + ? WHERE id = ?',
+              [it.qty, it.id],
+              function (err5) {
+                if (err5 && !failed) {
+                  failed = true;
+                  db.run('ROLLBACK');
+                  return res.status(500).json({ error: 'DB_ERROR', details: err5.message });
+                }
+                pending--;
+                if (pending === 0 && !failed) {
+                  db.run('COMMIT', (err6) => {
+                    if (err6) return res.status(500).json({ error: 'DB_ERROR', details: err6.message });
+                    res.status(201).json({ id: purchaseId, total });
+                  });
+                }
+              }
+            );
+          }
+        }
+      );
+    });
+  });
+});
+
+app.put('/api/purchases/:id', authMiddleware, (req, res) => {
+  const { id } = req.params;
+  const { supplier_id, items } = req.body;
+  if (!Array.isArray(items) || items.length === 0) return res.status(400).json({ error: 'EMPTY_ITEMS' });
+  db.all('SELECT * FROM purchase_items WHERE purchase_id = ?', [id], (err0, oldItems) => {
+    if (err0) return res.status(500).json({ error: 'DB_ERROR', details: err0.message });
+    const oldByProduct = new Map(oldItems.map((r) => [r.product_id, r]));
+    const productIds = items.map((it) => it.id);
+    const placeholders = productIds.map(() => '?').join(',');
+    db.all(`SELECT id, name, price, stock FROM products WHERE id IN (${placeholders})`, productIds, (err2, rows) => {
+      if (err2) return res.status(500).json({ error: 'DB_ERROR', details: err2.message });
+      const byId = new Map(rows.map((r) => [r.id, r]));
+      for (const it of items) {
+        const pr = byId.get(it.id);
+        if (!pr) return res.status(400).json({ error: 'PRODUCT_NOT_FOUND', details: it.id });
+        if (it.price == null) it.price = pr.price;
+        if (it.qty == null || it.qty <= 0) return res.status(400).json({ error: 'INVALID_QTY' });
+      }
+      const total = items.reduce((s, it) => s + (it.price * it.qty), 0);
+      db.serialize(() => {
+        db.run('BEGIN TRANSACTION');
+        db.run('UPDATE purchases SET supplier_id = ?, total = ? WHERE id = ?', [supplier_id || null, total, id], function (err3) {
+          if (err3) {
+            db.run('ROLLBACK');
+            return res.status(500).json({ error: 'DB_ERROR', details: err3.message });
+          }
+          db.all('SELECT * FROM purchase_items WHERE purchase_id = ?', [id], (err4, rowsOld) => {
+            if (err4) {
+              db.run('ROLLBACK');
+              return res.status(500).json({ error: 'DB_ERROR', details: err4.message });
+            }
+            let failed = false;
+            let pending = rowsOld.length + items.length + 1;
+            for (const r of rowsOld) {
+              db.run('UPDATE products SET stock = stock - ? WHERE id = ?', [r.qty, r.product_id], function (err5) {
+                if (err5 && !failed) {
+                  failed = true;
+                  db.run('ROLLBACK');
+                  return res.status(500).json({ error: 'DB_ERROR', details: err5.message });
+                }
+                pending--;
+                if (pending === 0 && !failed) {
+                  db.run('COMMIT', (err6) => {
+                    if (err6) return res.status(500).json({ error: 'DB_ERROR', details: err6.message });
+                    res.json({ id: Number(id), total });
+                  });
+                }
+              });
+            }
+            db.run('DELETE FROM purchase_items WHERE purchase_id = ?', [id], function (err7) {
+              if (err7 && !failed) {
+                failed = true;
+                db.run('ROLLBACK');
+                return res.status(500).json({ error: 'DB_ERROR', details: err7.message });
+              }
+              pending--;
+              for (const it of items) {
+                const lineTotal = it.price * it.qty;
+                db.run(
+                  'INSERT INTO purchase_items (purchase_id, product_id, name, price, qty, line_total) VALUES (?, ?, ?, ?, ?, ?)',
+                  [id, it.id, byId.get(it.id).name, it.price, it.qty, lineTotal],
+                  function (err8) {
+                    if (err8 && !failed) {
+                      failed = true;
+                      db.run('ROLLBACK');
+                      return res.status(500).json({ error: 'DB_ERROR', details: err8.message });
+                    }
+                  }
+                );
+                db.run('UPDATE products SET stock = stock + ? WHERE id = ?', [it.qty, it.id], function (err9) {
+                  if (err9 && !failed) {
+                    failed = true;
+                    db.run('ROLLBACK');
+                    return res.status(500).json({ error: 'DB_ERROR', details: err9.message });
+                  }
+                  pending--;
+                  if (pending === 0 && !failed) {
+                    db.run('COMMIT', (err6) => {
+                      if (err6) return res.status(500).json({ error: 'DB_ERROR', details: err6.message });
+                      res.json({ id: Number(id), total });
+                    });
+                  }
+                });
+              }
+            });
+          });
+        });
+      });
+    });
+  });
+});
+
+app.delete('/api/purchases/:id', authMiddleware, (req, res) => {
+  const { id } = req.params;
+  db.serialize(() => {
+    db.run('BEGIN TRANSACTION');
+    db.all('SELECT * FROM purchase_items WHERE purchase_id = ?', [id], (err, rows) => {
+      if (err) {
+        db.run('ROLLBACK');
+        return res.status(500).json({ error: 'DB_ERROR', details: err.message });
+      }
+      let failed = false;
+      let pending = rows.length + 2;
+      for (const r of rows) {
+        db.run('UPDATE products SET stock = stock - ? WHERE id = ?', [r.qty, r.product_id], function (err2) {
+          if (err2 && !failed) {
+            failed = true;
+            db.run('ROLLBACK');
+            return res.status(500).json({ error: 'DB_ERROR', details: err2.message });
+          }
+          pending--;
+          if (pending === 0 && !failed) {
+            db.run('COMMIT', (err6) => {
+              if (err6) return res.status(500).json({ error: 'DB_ERROR', details: err6.message });
+              res.json({ deleted: true });
+            });
+          }
+        });
+      }
+      db.run('DELETE FROM purchase_items WHERE purchase_id = ?', [id], function (err3) {
+        if (err3 && !failed) {
+          failed = true;
+          db.run('ROLLBACK');
+          return res.status(500).json({ error: 'DB_ERROR', details: err3.message });
+        }
+        pending--;
+        db.run('DELETE FROM purchases WHERE id = ?', [id], function (err4) {
+          if (err4 && !failed) {
+            failed = true;
+            db.run('ROLLBACK');
+            return res.status(500).json({ error: 'DB_ERROR', details: err4.message });
+          }
+          pending--;
+          if (pending === 0 && !failed) {
+            db.run('COMMIT', (err6) => {
+              if (err6) return res.status(500).json({ error: 'DB_ERROR', details: err6.message });
+              res.json({ deleted: true });
+            });
+          }
+        });
+      });
+    });
+  });
+});
+
 app.listen(PORT, () => {
   console.log(`SJPOS API escuchando en http://localhost:${PORT}`);
 });

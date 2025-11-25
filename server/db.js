@@ -90,6 +90,36 @@ db.serialize(() => {
   // Indexes to speed up product listing and lookups
   db.run('CREATE INDEX IF NOT EXISTS idx_products_name ON products(name)');
   db.run('CREATE INDEX IF NOT EXISTS idx_products_sku ON products(sku)');
+  db.run(`CREATE TABLE IF NOT EXISTS suppliers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    contact TEXT,
+    phone TEXT,
+    email TEXT,
+    active INTEGER NOT NULL DEFAULT 1
+  )`);
+  db.run(`CREATE TABLE IF NOT EXISTS purchases (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    supplier_id INTEGER,
+    user_id INTEGER NOT NULL,
+    total REAL NOT NULL,
+    created_at INTEGER NOT NULL,
+    FOREIGN KEY(supplier_id) REFERENCES suppliers(id),
+    FOREIGN KEY(user_id) REFERENCES users(id)
+  )`);
+  db.run(`CREATE TABLE IF NOT EXISTS purchase_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    purchase_id INTEGER NOT NULL,
+    product_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    price REAL NOT NULL,
+    qty INTEGER NOT NULL,
+    line_total REAL NOT NULL,
+    FOREIGN KEY(purchase_id) REFERENCES purchases(id),
+    FOREIGN KEY(product_id) REFERENCES products(id)
+  )`);
+  db.run('CREATE INDEX IF NOT EXISTS idx_suppliers_name ON suppliers(name)');
+  db.run('CREATE INDEX IF NOT EXISTS idx_purchases_created ON purchases(created_at)');
 });
 
 module.exports = db;
