@@ -150,11 +150,7 @@ export default function SyncStatus() {
 
   return (
     <div className="flex gap-2 items-center">
-      <Button variant="neutral" size="sm" onClick={handleExport}>Exportar JSON</Button>
-      <Button as="label" variant="neutral" size="sm" className="cursor-pointer">
-        Importar JSON
-        <input type="file" accept="application/json" className="hidden" onChange={handleImport} />
-      </Button>
+      {/* Exportar/Importar JSON movidos a Configuración */}
       <button type="button" title={uploading ? 'Subiendo…' : 'Subir a la nube'} aria-label="Subir a la nube" onClick={handleUploadOnly} disabled={!user || uploading} className="px-2 py-2 rounded-md border bg-white hover:bg-gray-50 disabled:opacity-50">
         <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 16v2a4 4 0 0 1-4 4h-5a4 4 0 0 1-4-4v-3a4 4 0 0 1 4-4h1"/><path d="M12 12v9"/><path d="M8 16l4-4 4 4"/><path d="M20 16a4 4 0 0 0 0-8 5 5 0 0 0-9-3"/></svg>
       </button>

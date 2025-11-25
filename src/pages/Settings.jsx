@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { db } from '../data/db'
+import { exportData, importData } from '../data/sync'
 import Card from '../components/Card'
 import Button from '../components/Button'
 import Badge from '../components/Badge'
@@ -84,6 +85,30 @@ export default function Settings() {
         <div className="space-y-2">
           <Button variant="danger" onClick={() => setDeleteAllOpen(true)}>Borrar todos los productos</Button>
           <Button variant="warning" onClick={() => setResetAllOpen(true)}>Borrar todo y reiniciar</Button>
+        </div>
+      </Card>
+
+      <Card title="Backup JSON">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="neutral" onClick={async () => {
+            const json = await exportData()
+            const blob = new Blob([json], { type: 'application/json' })
+            const url = URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = url
+            a.download = 'sj-facturacion-backup.json'
+            a.click()
+            URL.revokeObjectURL(url)
+          }}>Exportar JSON</Button>
+          <Button as="label" variant="neutral" className="cursor-pointer">
+            Importar JSON
+            <input type="file" accept="application/json" className="hidden" onChange={async e => {
+              const file = e.target.files?.[0]
+              if (!file) return
+              const text = await file.text()
+              await importData(text)
+            }} />
+          </Button>
         </div>
       </Card>
 
