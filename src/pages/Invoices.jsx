@@ -6,9 +6,11 @@ import Button from '../components/Button'
 import Input from '../components/Input'
 import Select from '../components/Select'
 import Modal from '../components/Modal'
+import UnsavedChangesBar from '../components/UnsavedChangesBar'
 import { useToast } from '../components/ToastContext'
 import { formatMoney } from '../utils/format'
 import Badge from '../components/Badge'
+import { useFormDirty } from '../hooks/useDirtyState'
 
 export default function Invoices() {
   const navigate = useNavigate()
@@ -16,6 +18,12 @@ export default function Invoices() {
   const [lists, setLists] = useState([])
   const [products, setProducts] = useState([])
   const [form, setForm] = useState({ customerId: '', listId: '', date: new Date().toISOString().slice(0,10), saleCondition: 'Contado' })
+  const initialForm = { customerId: '', listId: '', date: new Date().toISOString().slice(0,10), saleCondition: 'Contado' }
+  const isDirtyForm = useFormDirty(initialForm, form)
+  
+  // Validación visual del formulario
+  const [errors, setErrors] = useState({ customerId: false, items: false })
+  
   const [items, setItems] = useState([])
   const [itemQueries, setItemQueries] = useState([])
   const [itemQtyText, setItemQtyText] = useState([])
@@ -124,7 +132,10 @@ export default function Invoices() {
       total: Number(it.qty) * Number(it.unitPrice)
     })))
     await db.ledger.add({ customerId: Number(form.customerId), date: new Date(form.date).toISOString(), type: 'debe', amount: total, reference: `Factura ${number}` })
+    // Reset formulario
+    setForm(initialForm)
     setItems([])
+    setErrors({ customerId: false, items: false })
     // Refrescar listado de facturas
     const list = await db.invoices.toArray()
     setInvoices(list.sort((a,b) => new Date(b.date) - new Date(a.date)))
@@ -133,14 +144,25 @@ export default function Invoices() {
 
   function saveInvoice(e) {
     e.preventDefault()
+    let hasErrors = false
+    const newErrors = { customerId: false, items: false }
+    
     if (!form.customerId) {
-      show('Selecciona un cliente', 'warning')
-      return
+      newErrors.customerId = true
+      hasErrors = true
     }
     if (items.length === 0) {
-      show('Agrega al menos un ítem', 'warning')
+      newErrors.items = true
+      hasErrors = true
+    }
+    
+    setErrors(newErrors)
+    
+    if (hasErrors) {
+      show('Por favor completa los campos requeridos', 'warning')
       return
     }
+    
     setConfirmOpen(true)
   }
 
@@ -341,12 +363,21 @@ export default function Invoices() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6 p-4">
+    <div className="max-w-7xl mx-auto space-y-6 p-4 pb-24">
 <h2 className="text-2xl font-bold tracking-tight text-slate-800">Emitir factura</h2>
       <Card>
         <form onSubmit={saveInvoice} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
-            <Select label="Cliente" value={form.customerId} onChange={e => setForm({ ...form, customerId: e.target.value })}>
+            <Select 
+              label="Cliente" 
+              value={form.customerId} 
+              onChange={e => {
+                setForm({ ...form, customerId: e.target.value })
+                setErrors({ ...errors, customerId: false })
+              }}
+              error={errors.customerId}
+              errorMessage={errors.customerId ? 'Selecciona un cliente' : ''}
+            >
               <option value="">Seleccione…</option>
               {customers.map(c => (
                 <option key={c.id} value={c.id}>{c.name}</option>
@@ -370,7 +401,10 @@ export default function Invoices() {
 
           <div className="space-y-2">
             <div className="flex justify-between items-center">
-              <h3 className="font-semibold">Ítems</h3>
+              <h3 className="font-semibold">
+                Ítems
+                {errors.items && <span className="text-red-600 text-sm ml-2">⚠️ Agrega al menos un ítem</span>}
+              </h3>
               <Button type="button" variant="success" onClick={addItem}>Agregar ítem</Button>
             </div>
             <div className="space-y-2">
@@ -962,6 +996,17 @@ export default function Invoices() {
       >
         <p>¿Confirmás eliminar el ítem seleccionado?</p>
       </Modal>
+
+      {/* Barra de cambios sin guardar */}
+      <UnsavedChangesBar 
+        isDirty={isDirtyForm}
+        onSave={() => saveInvoice({ preventDefault: () => {} })}
+        onDiscard={() => {
+          setForm(initialForm)
+          setItems([])
+          setErrors({ customerId: false, items: false })
+        }}
+      />
     </div>
   )
 }

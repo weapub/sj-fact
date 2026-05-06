@@ -1,12 +1,68 @@
-export default function Textarea({ label, helper, className = '', containerClassName = '', ...props }) {
+import { forwardRef } from 'react'
+
+/**
+ * Textarea component con soporte de accesibilidad mejorado.
+ * API CONSISTENTE: usa 'className' para personalizar clases
+ * 
+ * @param {string} label - Etiqueta del textarea
+ * @param {string} helper - Texto de ayuda bajo el textarea
+ * @param {boolean} error - Si el textarea tiene error
+ * @param {string} errorMessage - Mensaje de error
+ * @param {string} className - Clases adicionales del textarea (no del contenedor)
+ */
+export default forwardRef(function Textarea({ 
+  label, 
+  helper, 
+  error = false,
+  errorMessage,
+  className = '', 
+  id,
+  ...props 
+}, ref) {
+  const textareaId = id || `textarea-${Math.random().toString(36).substr(2, 9)}`
+  const helperId = `${textareaId}-helper`
+  const errorId = `${textareaId}-error`
+  const describedByIds = [
+    helper && helperId,
+    error && errorMessage && errorId,
+  ].filter(Boolean).join(' ')
+
   return (
-    <div className={containerClassName}>
-      {label && <label className="block text-sm font-medium">{label}</label>}
+    <div className="space-y-1">
+      {label && (
+        <label 
+          htmlFor={textareaId}
+          className="block text-sm font-medium text-gray-700"
+        >
+          {label}
+        </label>
+      )}
       <textarea
-        className={`mt-1 w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${className}`}
+        ref={ref}
+        id={textareaId}
+        aria-invalid={error}
+        aria-describedby={describedByIds || undefined}
+        className={`w-full border-2 rounded-lg px-3 py-2 bg-white transition-colors resize-none
+          ${error 
+            ? 'border-red-500 focus:border-red-500 focus:ring-red-500' 
+            : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
+          }
+          placeholder:text-gray-400
+          focus:outline-none focus:ring-2 focus:ring-offset-0
+          disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed
+          ${className}`}
         {...props}
       />
-{helper && <p className="mt-1 text-xs text-slate-600">{helper}</p>}
+      {helper && (
+        <p id={helperId} className="text-xs text-gray-600">
+          {helper}
+        </p>
+      )}
+      {error && errorMessage && (
+        <p id={errorId} className="text-xs text-red-600 font-medium" role="alert">
+          ⚠️ {errorMessage}
+        </p>
+      )}
     </div>
   )
-}
+})
